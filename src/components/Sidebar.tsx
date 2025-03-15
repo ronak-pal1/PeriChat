@@ -27,7 +27,7 @@ const Sidebar = () => {
 
         <div className="w-full flex flex-col items-center mt-3">
           <DivisionComp>
-            <div className="w-fit px-2 py-1 rounded-md h-fit bg-slate-100">
+            <div className="w-fit px-2 py-1 rounded-md h-fit bg-slate-100 cursor-pointer">
               <Icon
                 icon="ic:round-home"
                 width="22"
@@ -38,7 +38,7 @@ const Sidebar = () => {
           </DivisionComp>
 
           <DivisionComp>
-            <div className="w-fit px-2 py-1 rounded-md h-fit bg-slate-100">
+            <div className="w-fit px-2 py-1 rounded-md h-fit bg-slate-100 cursor-pointer">
               <Icon
                 icon="line-md:chat-round-dots-filled"
                 width="22"

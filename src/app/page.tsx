@@ -6,30 +6,30 @@ import Sidebar from "@/components/Sidebar";
 // The main chat route where the whole chat UI will display
 export default function Chat() {
   return (
-    <div className="flex h-screen flex-1">
+    <div className="flex h-screen flex-1 w-full">
       {/* Left sidebar */}
-      <div className="h-full w-full flex-[0.04]">
+      <section className="h-full w-full flex-[0.04]">
         <Sidebar />
-      </div>
+      </section>
 
       {/* Right section */}
-      <div className="h-full w-full flex-[0.96]  flex flex-col">
+      <div className="h-full w-full flex-[0.96]  flex flex-col ">
         {/* header section */}
-        <div className="flex-[0.06] w-full h-full">
+        <section className="flex-[0.06] w-full h-full">
           <Header />
-        </div>
+        </section>
 
         {/* main chat portion including all the chats and the chatting section*/}
-        <main className="w-full h-full flex-[0.94] flex">
+        <main className="w-full h-full flex-[0.94] flex min-h-0">
           {/* All chats */}
-          <div className="w-full h-full flex-[0.25] border-r border-ws-green-50">
+          <section className="w-full h-full flex-[0.27] border-r border-ws-green-50 min-h-0">
             <AllChats />
-          </div>
+          </section>
 
           {/* Chatting section */}
-          <div className="w-full h-full flex-[0.75]">
+          <section className="w-full h-full flex-[0.73]">
             <ChatWindow />
-          </div>
+          </section>
         </main>
       </div>
     </div>
