@@ -33,14 +33,12 @@ const Sidebar = () => {
 
         <div className="w-full flex flex-col items-center mt-3">
           <DivisionComp>
-            <div className="w-fit px-2 py-1 rounded-md h-fit bg-slate-100 cursor-pointer">
-              <Icon
-                icon="ic:round-home"
-                width="20"
-                height="20"
-                className="text-ws-green-300"
-              />
-            </div>
+            <Icon
+              icon="ic:round-home"
+              width="20"
+              height="20"
+              className="text-ws-green-300"
+            />
           </DivisionComp>
 
           <DivisionComp>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Icon } from "@iconify/react/dist/iconify.js";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 enum MESSAGE_TYPES {
   SENT = "SENT",
