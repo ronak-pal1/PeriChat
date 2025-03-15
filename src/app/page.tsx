@@ -27,7 +27,7 @@ export default function Chat() {
           </section>
 
           {/* Chatting section */}
-          <section className="w-full h-full flex-[0.73]">
+          <section className="w-full h-full flex-[0.73] min-h-0">
             <ChatWindow />
           </section>
         </main>

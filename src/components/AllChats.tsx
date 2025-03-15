@@ -32,8 +32,8 @@ const SingleChatBox = () => {
         {/* message, notification count */}
         <div className="w-full flex items-center flex-1 justify-between">
           <div className="w-full flex-[0.8]">
-            <p className="text-neutral-400 text-sm line-clamp-1">
-              Shubham: Hey what are you doing now
+            <p className="text-neutral-400 text-xs line-clamp-1">
+              Shubham: Hey what are you doing now. what is the
             </p>
           </div>
 
