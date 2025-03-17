@@ -1,7 +1,9 @@
 "use client";
 
+import { useAuthContext } from "@/context/authContext";
+import { supabase } from "@/lib/supabaseClient";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 enum MESSAGE_TYPES {
   SENT = "SENT",
@@ -11,8 +13,11 @@ enum MESSAGE_TYPES {
 type CHAT_INFO_TYPE = {
   type: MESSAGE_TYPES;
   name: string;
-  message: string;
-  timeStamp: string;
+  content: string;
+  sender_id: string;
+  receiver_id: string;
+  is_read: boolean;
+  createdAt: string;
   number: string;
 };
 
@@ -42,12 +47,12 @@ const MessageBox = ({ chatInfo }: { chatInfo: CHAT_INFO_TYPE }) => {
           </div>
 
           <div>
-            <p className="text-black text-sm">{chatInfo.message}</p>
+            <p className="text-black text-sm">{chatInfo.content}</p>
           </div>
 
           <div className="flex justify-end">
             <div className="flex items-center space-x-2">
-              <p className="text-[10px] text-gray-400">{chatInfo.timeStamp}</p>
+              <p className="text-[10px] text-gray-400">{chatInfo.createdAt}</p>
 
               {chatInfo.type == MESSAGE_TYPES.SENT && (
                 <Icon
@@ -66,36 +71,172 @@ const MessageBox = ({ chatInfo }: { chatInfo: CHAT_INFO_TYPE }) => {
 };
 
 // This is the main chatting window where the user's will send the messages
-const ChatWindow = () => {
+const ChatWindow = ({
+  currentChatPersonId,
+}: {
+  currentChatPersonId: string;
+}) => {
   // This will store the whole chat history
   const [chatHistory, setChatHistory] = useState<CHAT_INFO_TYPE[]>([]);
+  const [profileInfo, setProfileInfo] = useState<
+    | {
+        name: string;
+        phone: string;
+        email: string;
+        avatar_url: string;
+        id: string;
+      }
+    | undefined
+  >(undefined);
+
+  const { user } = useAuthContext();
 
   // The message entered by the user
   const [message, setMessage] = useState<string>("");
 
-  const sendMessage = () => {
+  const chatWindowRef = useRef<HTMLDivElement>(null);
+
+  const sendMessage = async () => {
     if (!message) return;
 
-    setChatHistory([
-      ...chatHistory,
+    await supabase.from("messages").insert([
       {
-        name: "Ronak Paul",
-        message,
-        number: "+91 075027026",
-        type: MESSAGE_TYPES.SENT,
-        timeStamp: "12:04",
+        sender_id: user?.id,
+        receiver_id: currentChatPersonId,
+        content: message,
       },
     ]);
 
     setMessage("");
   };
 
+  const fetchChatHistory = async () => {
+    if (!user || !profileInfo) return;
+
+    console.log(user);
+
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .or(
+        `and(sender_id.eq.${user?.id},receiver_id.eq.${currentChatPersonId}),and(sender_id.eq.${currentChatPersonId},receiver_id.eq.${user.id})`
+      )
+      .order("created_at", { ascending: true });
+
+    if (data) {
+      const formattedData: CHAT_INFO_TYPE[] = data.map((d) => ({
+        content: d.content,
+        is_read: d.is_read,
+        createdAt: d.created_at,
+        sender_id: d.sender_id,
+        receiver_id: d.receiver_id,
+        name:
+          d.sender_id == user.id
+            ? user.name
+              ? user.name
+              : ""
+            : profileInfo.name,
+        number:
+          d.sender_id == user.id
+            ? user.phone
+              ? user.phone
+              : ""
+            : profileInfo.phone,
+        type:
+          d.sender_id == user.id ? MESSAGE_TYPES.SENT : MESSAGE_TYPES.RECEIVED,
+      }));
+
+      setChatHistory(formattedData);
+    }
+  };
+
+  useEffect(() => {
+    if (!user || !currentChatPersonId || !profileInfo) return;
+
+    fetchChatHistory();
+
+    chatWindowRef.current?.scrollTo({
+      behavior: "smooth",
+      top: chatWindowRef.current.scrollHeight,
+    });
+
+    const subscription = supabase
+      .channel("realtime-messages")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const formattedData: CHAT_INFO_TYPE = {
+            content: payload.new.content,
+            is_read: payload.new.is_read,
+            createdAt: payload.new.createdAt,
+            sender_id: payload.new.sender_id,
+            receiver_id: payload.new.receiver_id,
+            name:
+              payload.new.sender_id == user.id
+                ? user.name
+                  ? user.name
+                  : ""
+                : profileInfo.name,
+            number:
+              payload.new.sender_id == user.id
+                ? user.phone
+                  ? user.phone
+                  : ""
+                : profileInfo.phone,
+            type:
+              payload.new.sender_id == user.id
+                ? MESSAGE_TYPES.SENT
+                : MESSAGE_TYPES.RECEIVED,
+          };
+
+          setChatHistory((prev) => [...prev, formattedData]);
+
+          const chatWindowElement = chatWindowRef.current;
+
+          chatWindowElement?.scrollTo({
+            behavior: "smooth",
+            top: chatWindowElement.scrollHeight + 400,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [user, profileInfo]);
+
+  const getProfileById = async (profileId: string) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", profileId)
+      .single();
+
+    if (error) {
+      return;
+    }
+
+    setProfileInfo(data);
+  };
+
+  useEffect(() => {
+    if (!currentChatPersonId) return;
+
+    getProfileById(currentChatPersonId);
+  }, [currentChatPersonId]);
+
   return (
     <div className="w-full h-full flex flex-1">
       {/* Left main chat portion */}
-      <section className="w-full h-full flex flex-col flex-[0.95] border-r border-ws-green-50 min-h-0">
+      <section className="w-full h-full flex flex-col flex-[0.95] border-r border-ws-green-50 min-h-0 min-w-0">
         {/* header portion */}
-        <header className="w-full h-full flex-[0.07] flex items-center justify-between px-4">
+        <header
+          className={`w-full h-full flex-[0.07] flex items-center justify-between px-4 ${
+            currentChatPersonId == "" && "hidden"
+          }`}
+        >
           {/* Left section */}
           <div className="flex items-center space-x-3">
             <div className="p-2 rounded-full bg-neutral-300">
@@ -108,11 +249,12 @@ const ChatWindow = () => {
             </div>
 
             <div className="flex flex-col">
-              <p className="text-black text-sm font-bold">Ronak Paul</p>
+              <p className="text-black text-sm font-bold">
+                {profileInfo?.name}
+              </p>
 
               <div className="text-neutral-400 text-xs font-medium flex items-center space-x-1">
-                <p>Shubham Awasthi,</p>
-                <p>Kuldeep Yadav</p>
+                <p>{profileInfo?.phone}</p>
               </div>
             </div>
           </div>
@@ -136,7 +278,11 @@ const ChatWindow = () => {
         </header>
 
         {/* Messages section */}
-        <div className="relative w-full h-full flex-[0.84] border-y border-ws-green-50 flex flex-col min-h-0">
+        <div
+          className={`relative w-full h-full border-y border-ws-green-50 flex flex-col min-h-0 min-w-0 justify-end ${
+            currentChatPersonId == "" ? "flex-1" : "flex-[0.84]"
+          }`}
+        >
           <img
             src={"/chat-bg.png"}
             alt="background image"
@@ -144,7 +290,10 @@ const ChatWindow = () => {
           />
 
           {/* This section will contain the messages */}
-          <div className="w-full z-50 flex-1 flex flex-col overflow-y-scroll space-y-5 justify-end min-h-0 py-3 custom-scrollbar">
+          <div
+            className="w-full z-50 flex flex-col space-y-5 min-h-0 overflow-y-auto py-3 custom-scrollbar"
+            ref={chatWindowRef}
+          >
             {chatHistory.map((chat, index) => (
               <MessageBox chatInfo={chat} key={index} />
             ))}
@@ -152,7 +301,11 @@ const ChatWindow = () => {
         </div>
 
         {/* message input section */}
-        <footer className="w-full h-full flex-[0.09] px-5 py-3">
+        <footer
+          className={`w-full h-full flex-[0.09] px-5 py-3 ${
+            currentChatPersonId == "" && "hidden"
+          }`}
+        >
           <div className="w-full h-full flex flex-col space-y-4">
             <div className="w-full flex items-center justify-between space-x-3">
               <input
@@ -205,7 +358,7 @@ const ChatWindow = () => {
                   <div className="flex items-center space-x-2">
                     <div className="w-3 h-3 rounded-full bg-neutral-300"> </div>
 
-                    <p className="text-xs font-medium">Periskope</p>
+                    <p className="text-xs font-medium">{user?.name}</p>
                   </div>
 
                   <Icon
