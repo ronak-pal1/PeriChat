@@ -1,9 +1,12 @@
 "use client";
 
 import { useAuthContext } from "@/context/authContext";
+import { useRefetch } from "@/context/refetchContext";
 import { supabase } from "@/lib/supabaseClient";
+import { formatToOnlyTime } from "@/utils/formatTime";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import { useEffect, useRef, useState } from "react";
+import Modal from "./Modal";
 
 enum MESSAGE_TYPES {
   SENT = "SENT",
@@ -52,7 +55,9 @@ const MessageBox = ({ chatInfo }: { chatInfo: CHAT_INFO_TYPE }) => {
 
           <div className="flex justify-end">
             <div className="flex items-center space-x-2">
-              <p className="text-[10px] text-gray-400">{chatInfo.createdAt}</p>
+              <p className="text-[10px] text-gray-400">
+                {formatToOnlyTime(chatInfo.createdAt)}
+              </p>
 
               {chatInfo.type == MESSAGE_TYPES.SENT && (
                 <Icon
@@ -96,6 +101,11 @@ const ChatWindow = ({
 
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
+  const [isChatOverlayButtonsVisible, setIsChatOverlayButtonsVisible] =
+    useState<boolean>(false);
+
+  const [isLabelModalOpen, setIsLabelModalOpen] = useState<boolean>(false);
+
   const sendMessage = async () => {
     if (!message) return;
 
@@ -110,10 +120,36 @@ const ChatWindow = ({
     setMessage("");
   };
 
+  // For displaying the scroll to bottom button on scroll
+  const [isScrollToBBVisible, setIsScrollToBBVisible] =
+    useState<boolean>(false);
+
+  useEffect(() => {
+    const chatWindowElement = chatWindowRef.current;
+
+    if (!chatWindowElement) return;
+
+    const goToBottom = () => {
+      //   console.log(chatWindowElement.scrollTop, chatWindowElement.scrollHeight);
+
+      if (chatWindowElement.scrollTop >= chatWindowElement.scrollHeight / 3) {
+        setIsScrollToBBVisible(false);
+      } else {
+        setIsScrollToBBVisible(true);
+      }
+    };
+
+    chatWindowElement.addEventListener("scroll", goToBottom);
+
+    return () => {
+      chatWindowElement.removeEventListener("scroll", goToBottom);
+    };
+  }, [currentChatPersonId]);
+
+  const { triggerRefetch } = useRefetch();
+
   const fetchChatHistory = async () => {
     if (!user || !profileInfo) return;
-
-    console.log(user);
 
     const { data } = await supabase
       .from("messages")
@@ -192,6 +228,8 @@ const ChatWindow = ({
 
           setChatHistory((prev) => [...prev, formattedData]);
 
+          triggerRefetch();
+
           const chatWindowElement = chatWindowRef.current;
 
           chatWindowElement?.scrollTo({
@@ -229,6 +267,16 @@ const ChatWindow = ({
 
   return (
     <div className="w-full h-full flex flex-1">
+      {/* Modal for displaying the add label diaglog */}
+      <Modal isOpen={isLabelModalOpen} setIsOpen={setIsLabelModalOpen}>
+        <div
+          className="w-[50%] h-[60%] bg-white rounded-lg"
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        ></div>
+      </Modal>
+
       {/* Left main chat portion */}
       <section className="w-full h-full flex flex-col flex-[0.95] border-r border-ws-green-50 min-h-0 min-w-0">
         {/* header portion */}
@@ -283,15 +331,35 @@ const ChatWindow = ({
             currentChatPersonId == "" ? "flex-1" : "flex-[0.84]"
           }`}
         >
+          {/* chat window overlay */}
           <img
             src={"/chat-bg.png"}
             alt="background image"
-            className="absolute top-0 left-0 w-full h-full object-cover opacity-50"
+            className="absolute z-0 top-0 left-0 w-full h-full object-cover opacity-50"
           />
+
+          {/* scroll to bottom button */}
+          {isScrollToBBVisible && (
+            <div
+              className={`w-full flex justify-center absolute bottom-4 z-50`}
+            >
+              <div
+                onClick={() => {
+                  chatWindowRef.current?.scrollTo({
+                    behavior: "smooth",
+                    top: chatWindowRef.current.scrollHeight,
+                  });
+                }}
+                className="bg-white w-14  h-fit py-1 rounded-sm cursor-pointer shadow-md flex justify-center"
+              >
+                <Icon icon="mdi-light:arrow-down" width="20" height="20" />
+              </div>
+            </div>
+          )}
 
           {/* This section will contain the messages */}
           <div
-            className="w-full z-50 flex flex-col space-y-5 min-h-0 overflow-y-auto py-3 custom-scrollbar"
+            className="w-full z-40 flex flex-col space-y-5 min-h-0 overflow-y-auto py-3 custom-scrollbar"
             ref={chatWindowRef}
           >
             {chatHistory.map((chat, index) => (
@@ -302,15 +370,49 @@ const ChatWindow = ({
 
         {/* message input section */}
         <footer
-          className={`w-full h-full flex-[0.09] px-5 py-3 ${
+          className={`w-full h-full flex-[0.09] px-5 py-3 relative ${
             currentChatPersonId == "" && "hidden"
           }`}
         >
+          {isChatOverlayButtonsVisible && (
+            <div className="absolute -top-1 left-4 -translate-y-full z-50 flex items-center space-x-1">
+              <button className="bg-white px-4 rounded-t-md py-1 flex items-center space-x-2">
+                <p className="text-xs font-semibold text-ws-green-400">
+                  Whatsapp
+                </p>
+                <Icon
+                  icon="material-symbols:info"
+                  width="15"
+                  height="15"
+                  className="text-gray-300"
+                />
+              </button>
+
+              <button className="bg-yellow-50 px-4 rounded-t-md py-1 flex items-center space-x-2">
+                <p className="text-xs font-semibold text-ws-green-200">
+                  Private Note
+                </p>
+                <Icon
+                  icon="material-symbols:info"
+                  width="15"
+                  height="15"
+                  className="text-gray-300"
+                />
+              </button>
+            </div>
+          )}
+
           <div className="w-full h-full flex flex-col space-y-4">
             <div className="w-full flex items-center justify-between space-x-3">
               <input
                 type="text"
                 value={message}
+                onFocus={() => {
+                  setIsChatOverlayButtonsVisible(true);
+                }}
+                onBlur={() => {
+                  setIsChatOverlayButtonsVisible(false);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") sendMessage();
                 }}
@@ -389,7 +491,15 @@ const ChatWindow = ({
             width={"18"}
             height={"18"}
           />
-          <Icon icon={"system-uicons:write"} width={"18"} height={"18"} />
+          <Icon
+            onClick={() => {
+              setIsLabelModalOpen(true);
+            }}
+            icon={"system-uicons:write"}
+            width={"18"}
+            height={"18"}
+            className="cursor-pointer"
+          />
           <Icon icon={"gg:menu-left"} width={"18"} height={"18"} />
           <Icon icon={"arcticons:dots"} width={"18"} height={"18"} />
 

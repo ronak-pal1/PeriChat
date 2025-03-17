@@ -5,6 +5,9 @@ import BorderButton, { BUTTON_CONTENT } from "./buttons/BorderButton";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuthContext } from "@/context/authContext";
+import { useRefetch } from "@/context/refetchContext";
+import { filter } from "fuzzy";
+import { formatToDate } from "@/utils/formatTime";
 
 type CHAT_INFO = {
   person_id: string;
@@ -17,16 +20,20 @@ type CHAT_INFO = {
 const SingleChatBox = ({
   chatInfo,
   setCurrentChatPersonId,
+  currentChatPersonId,
 }: {
   chatInfo: CHAT_INFO;
   setCurrentChatPersonId: React.Dispatch<React.SetStateAction<string>>;
+  currentChatPersonId: string;
 }) => {
   return (
     <div
       onClick={() => {
         setCurrentChatPersonId(chatInfo.person_id);
       }}
-      className="w-full flex px-2 py-2 space-x-3 cursor-pointer hover:bg-gray-50"
+      className={`w-full flex px-2 py-2 space-x-3 cursor-pointer hover:bg-gray-50 ${
+        chatInfo.person_id == currentChatPersonId && "bg-gray-100"
+      } `}
     >
       {/* User profile */}
       <div>
@@ -87,18 +94,23 @@ const SingleChatBox = ({
             </p>
           </div>
 
-          <p className="text-[9px] text-neutral-400 font-semibold">Yesterday</p>
+          <p className="text-[9px] text-neutral-400 font-semibold">
+            {formatToDate(chatInfo.latest_message_timestamp)}
+          </p>
         </div>
       </div>
     </div>
   );
 };
 
+let temp_persons: CHAT_INFO[] = [];
 // Component to list all the chats
 const AllChats = ({
   setCurrentChatPersonId,
+  currentChatPersonId,
 }: {
   setCurrentChatPersonId: React.Dispatch<React.SetStateAction<string>>;
+  currentChatPersonId: string;
 }) => {
   const [currentTab, setCurrentTab] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -107,51 +119,65 @@ const AllChats = ({
 
   const [newSearchPersons, setNewSearchPersons] = useState<CHAT_INFO[]>([]);
 
+  const [tab1SearchQuery, setTab1SearchQuery] = useState<string>("");
   const [tab2SearchQuery, setTab2SearchQuery] = useState<string>("");
 
   const [isSearchbarOpen, setIsSearchbarOpen] = useState<boolean>(false);
 
+  const [isFilterOn, setIsFilterOn] = useState<boolean>(false);
+
+  const { refetch } = useRefetch();
+
   const getPersons = async () => {
     // Query to get the persons you've sent messages to, with the latest message and their details
-    const { data, error } = await supabase
-      .from("messages")
+    const { data: personsData, error: personError } = await supabase.rpc(
+      "get_latest_messages",
+      { user_id: user?.id }
+    );
+
+    if (personError) {
+      return;
+    }
+
+    const { data: labelData, error: labelError } = await supabase
+      .from("chat_labels")
       .select(
         `
-          sender_id,
-          receiver_id,
-          content,
-          created_at,
-          profiles:sender_id (name, phone)
+         chat_partner_id,
+         label_name
         `
       )
-      .or(`sender_id.eq.${user?.id},receiver_id.eq.${user?.id}`)
-      .order("created_at", { ascending: false }) // Order messages by created_at descending (latest first)
-      .limit(1); // Only get the latest message
+      .eq("user_id", user?.id);
 
-    if (error) {
+    if (labelError) {
       return;
     }
 
     // Mapping to include the latest message for each user
-    const personsData: CHAT_INFO[] = data?.map((message: any) => ({
-      person_id:
-        message.sender_id == user?.id ? message.receiver_id : message.sender_id,
-      name: message.profiles.name,
-      phone: message.profiles.phone,
-      latest_message: message.content,
-      latest_message_timestamp: message.created_at,
-    }));
+    const formattedPersonsData: CHAT_INFO[] = personsData?.map(
+      (message: any) => ({
+        person_id:
+          message.sender_id == user?.id
+            ? message.receiver_id
+            : message.sender_id,
+        name: message.name,
+        phone: message.phone,
+        latest_message: message.content,
+        latest_message_timestamp: message.created_at,
+      })
+    );
 
-    setPersons(personsData);
+    setPersons(formattedPersonsData);
+    temp_persons = formattedPersonsData;
   };
 
   useEffect(() => {
     if (!user) return;
 
     getPersons();
-  }, [user?.id]);
+  }, [user?.id, refetch]);
 
-  // Debounced search function
+  // Debounced search function for tab2 search
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (tab2SearchQuery.trim()) {
@@ -165,6 +191,32 @@ const AllChats = ({
       clearTimeout(timeoutId); // Clear timeout if input changes
     };
   }, [tab2SearchQuery]);
+
+  // Debounced search function for tab1 search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (tab1SearchQuery.trim()) {
+        const onlyNames = temp_persons.map((person) => person.name);
+
+        const filteredNames = filter(tab1SearchQuery, onlyNames).map(
+          (r) => r.string
+        );
+
+        const results = temp_persons.filter((person) =>
+          filteredNames.includes(person.name)
+        );
+
+        setPersons(results);
+        console.log(results);
+      } else {
+        setPersons([...temp_persons]);
+      }
+    }, 500); // Debounce delay
+
+    return () => {
+      clearTimeout(timeoutId); // Clear timeout if input changes
+    };
+  }, [tab1SearchQuery]);
 
   const fetchNewSearchPersons = async (phoneNumber: string) => {
     const { data, error } = await supabase
@@ -216,6 +268,10 @@ const AllChats = ({
 
                 <input
                   type="text"
+                  value={tab1SearchQuery}
+                  onChange={(e) => {
+                    setTab1SearchQuery(e.target.value);
+                  }}
                   placeholder="Search"
                   className="w-full px-4 text-sm outline-none"
                 />
@@ -223,6 +279,7 @@ const AllChats = ({
                 <Icon
                   onClick={() => {
                     setIsSearchbarOpen(false);
+                    setTab1SearchQuery("");
                   }}
                   className="cursor-pointer"
                   icon={"material-symbols-light:close"}
@@ -258,7 +315,39 @@ const AllChats = ({
                   type={BUTTON_CONTENT.ICON_TEXT}
                 />
 
-                <BorderButton icon="bx:filter" text="Filtered" />
+                <div
+                  className="w-fit h-fit relative cursor-pointer"
+                  onClick={() => {
+                    if (!isFilterOn) {
+                      const filterdPersons = [...temp_persons].sort((p1, p2) =>
+                        p2.name.localeCompare(p1.name)
+                      );
+
+                      setPersons([...filterdPersons]);
+                    } else {
+                      setPersons([...temp_persons]);
+                    }
+
+                    setIsFilterOn(!isFilterOn);
+                  }}
+                >
+                  {isFilterOn && (
+                    <div className="bg-ws-green-400 rounded-full absolute -right-1 -top-1">
+                      <Icon
+                        icon={"basil:cross-solid"}
+                        width={"14"}
+                        height={"14"}
+                        className="text-white"
+                      />
+                    </div>
+                  )}
+
+                  <BorderButton
+                    icon="bx:filter"
+                    text={isFilterOn ? "Filtered" : "Filter"}
+                    color={isFilterOn ? "#15803d" : "black"}
+                  />
+                </div>
               </div>
             </>
           )}
@@ -294,6 +383,7 @@ const AllChats = ({
             {persons.map((data, index) => (
               <SingleChatBox
                 setCurrentChatPersonId={setCurrentChatPersonId}
+                currentChatPersonId={currentChatPersonId}
                 chatInfo={data}
                 key={index}
               />
@@ -336,6 +426,7 @@ const AllChats = ({
             {newSearchPersons.map((data, index) => (
               <SingleChatBox
                 setCurrentChatPersonId={setCurrentChatPersonId}
+                currentChatPersonId={currentChatPersonId}
                 chatInfo={data}
                 key={index}
               />
