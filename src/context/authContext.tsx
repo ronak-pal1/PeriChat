@@ -13,13 +13,15 @@ interface AuthContextType {
   user: {
     id: string;
     email: string | undefined;
-    phone: string | undefined;
+    phone?: string | undefined;
+    name?: string | undefined;
   } | null;
   setUser: (
     user: {
       id: string;
       email: string | undefined;
-      phone: string | undefined;
+      phone?: string | undefined;
+      name?: string | undefined;
     } | null
   ) => void;
   logout: () => void;
@@ -31,18 +33,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<{
     id: string;
     email: string | undefined;
-    phone: string | undefined;
+    phone?: string | undefined;
+    name?: string | undefined;
   } | null>(null);
   const router = useRouter();
 
   const setUserFunc = async () => {
-    const { data } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error) router.push("/login");
+
+    const { data: personalData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", data.session?.user.id)
+      .single();
+
     setUser(
       data.session?.user
         ? {
             id: data.session.user.id,
             email: data.session.user.email,
-            phone: data.session.user.phone,
+            phone: personalData.phone,
+            name: personalData.name,
           }
         : null
     );
@@ -54,7 +67,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           ? {
               id: session.user.id,
               email: session.user.email,
-              phone: session.user.phone,
+              phone: personalData.phone,
+              name: personalData.name,
             }
           : null;
 

@@ -2,7 +2,7 @@
 
 import PassInput from "@/components/inputs/PassInput";
 import TextInput from "@/components/inputs/TextInput";
-import { useAuthContext } from "@/context/authContext";
+import { AuthProvider, useAuthContext } from "@/context/authContext";
 import { supabase } from "@/lib/supabaseClient";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -24,7 +24,6 @@ export default function Page() {
       setUser({
         id: data.user.id,
         email: data.user.email,
-        phone: data.user.phone,
       });
     }
 

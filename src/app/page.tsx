@@ -1,10 +1,15 @@
+"use client";
+
 import AllChats from "@/components/AllChats";
 import ChatWindow from "@/components/ChatWindow";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
+import { useState } from "react";
 
 // The main chat route where the whole chat UI will display
-export default function Chat() {
+export default function Page() {
+  const [currentChatPersonId, setCurrentChatPersonId] = useState<string>("");
+
   return (
     <div className="flex h-screen flex-1 w-full">
       {/* Left sidebar */}
@@ -20,15 +25,15 @@ export default function Chat() {
         </section>
 
         {/* main chat portion including all the chats and the chatting section*/}
-        <main className="w-full h-full flex-[0.94] flex min-h-0">
+        <main className="w-full h-full flex-[0.94] flex min-h-0 min-w-0">
           {/* All chats */}
-          <section className="w-full h-full flex-[0.27] border-r border-ws-green-50 min-h-0">
-            <AllChats />
+          <section className="w-full h-full flex-[0.27] border-r border-ws-green-50 min-h-0 min-w-0">
+            <AllChats setCurrentChatPersonId={setCurrentChatPersonId} />
           </section>
 
           {/* Chatting section */}
-          <section className="w-full h-full flex-[0.73] min-h-0">
-            <ChatWindow />
+          <section className="w-full h-full flex-[0.73] min-h-0 min-w-0">
+            <ChatWindow currentChatPersonId={currentChatPersonId} />
           </section>
         </main>
       </div>
