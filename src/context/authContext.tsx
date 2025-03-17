@@ -49,6 +49,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .eq("id", data.session?.user.id)
       .single();
 
+    if (!personalData) return;
+
     setUser(
       data.session?.user
         ? {

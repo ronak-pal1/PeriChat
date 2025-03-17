@@ -1,5 +1,7 @@
 import Image from "next/image";
 import { Icon } from "@iconify/react";
+import { useState } from "react";
+import { useAuthContext } from "@/context/authContext";
 
 const DivisionComp = ({
   children,
@@ -20,6 +22,10 @@ const DivisionComp = ({
 };
 
 const Sidebar = () => {
+  const [isLogoutOpen, setIsLogoutOpen] = useState<boolean>(false);
+
+  const { logout } = useAuthContext();
+
   return (
     <div className="w-full h-full flex flex-col items-center justify-between py-3 px-2 border-r border-ws-green-50">
       {/* top section */}
@@ -113,12 +119,30 @@ const Sidebar = () => {
               className="text-ws-green-300"
             />
 
-            <Icon
-              icon="si:settings-alt-fill"
-              width="20"
-              height="20"
-              className="text-ws-green-300"
-            />
+            <div
+              className="w-fit h-fit relative flex items-center cursor-pointer"
+              onClick={() => setIsLogoutOpen(!isLogoutOpen)}
+            >
+              {isLogoutOpen && (
+                <div className="absolute shadow-2xl -right-3 translate-x-full z-50 bg-white w-60 h-fit px-4 py-4 rounded-lg border border-gray-100">
+                  <button
+                    onClick={() => {
+                      logout();
+                    }}
+                    className="bg-red-500 w-full text-white px-3 py-1 text-sm rounded-md cursor-pointer"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+
+              <Icon
+                icon="si:settings-alt-fill"
+                width="20"
+                height="20"
+                className="text-ws-green-300"
+              />
+            </div>
           </DivisionComp>
         </div>
       </div>

@@ -12,19 +12,24 @@ const BorderButton = ({
   text,
   type = BUTTON_CONTENT.ICON_TEXT,
   onClickFunc = () => {},
+  color = "black",
 }: {
   icon?: string;
   text?: string;
   type?: BUTTON_CONTENT;
   onClickFunc?: Function;
+  color?: string;
 }) => {
   return (
     <button
       onClick={(e) => onClickFunc(e)}
       className="flex items-center space-x-1 border border-slate-200 px-2 py-1 rounded-md cursor-pointer bg-white"
+      style={{
+        color,
+      }}
     >
       {icon && type != BUTTON_CONTENT.TEXT && (
-        <Icon icon={icon} width={"15"} height={"15"} className="text-black" />
+        <Icon icon={icon} width={"15"} height={"15"} />
       )}
 
       {text &&
