@@ -5,6 +5,7 @@ import {
   useState,
   ReactNode,
   useEffect,
+  useCallback,
 } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
@@ -38,7 +39,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   } | null>(null);
   const router = useRouter();
 
-  const setUserFunc = async () => {
+  const setUserFunc = useCallback(async () => {
     const { data, error } = await supabase.auth.getSession();
 
     if (error) router.push("/login");
@@ -81,12 +82,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       authListener?.subscription.unsubscribe();
     };
-  };
+  }, [setUser, router]);
 
   // Check if the user is authenticated (when app loads)
   useEffect(() => {
     setUserFunc();
-  }, []);
+  }, [setUserFunc]);
 
   const logout = async () => {
     await supabase.auth.signOut();

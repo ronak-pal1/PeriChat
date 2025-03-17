@@ -139,19 +139,19 @@ const AllChats = ({
       return;
     }
 
-    const { data: labelData, error: labelError } = await supabase
-      .from("chat_labels")
-      .select(
-        `
-         chat_partner_id,
-         label_name
-        `
-      )
-      .eq("user_id", user?.id);
+    // const { data: labelData, error: labelError } = await supabase
+    //   .from("chat_labels")
+    //   .select(
+    //     `
+    //      chat_partner_id,
+    //      label_name
+    //     `
+    //   )
+    //   .eq("user_id", user?.id);
 
-    if (labelError) {
-      return;
-    }
+    // if (labelError) {
+    //   return;
+    // }
 
     // Mapping to include the latest message for each user
     const formattedPersonsData: CHAT_INFO[] = personsData?.map(

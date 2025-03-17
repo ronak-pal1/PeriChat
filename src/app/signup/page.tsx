@@ -25,8 +25,10 @@ export default function Page() {
         .from("profiles")
         .insert([{ id: data.user?.id, email, phone: number, name }]);
 
-      alert("Signup successful! Please log in.");
-      router.push("/login");
+      if (!profileError) {
+        alert("Signup successful! Please log in.");
+        router.push("/login");
+      }
     } else {
       alert("Error signing up");
     }
