@@ -9,12 +9,19 @@ import { useRefetch } from "@/context/refetchContext";
 import { filter } from "fuzzy";
 import { formatToDate } from "@/utils/formatTime";
 
+type LABEL_TYPE = {
+  id: string;
+  label_name: string;
+  color: string;
+};
+
 type CHAT_INFO = {
   person_id: string;
   name: string;
   phone: string;
   latest_message: string;
   latest_message_timestamp: string;
+  labels: LABEL_TYPE[];
 };
 
 const SingleChatBox = ({
@@ -54,9 +61,19 @@ const SingleChatBox = ({
           <p className="text-black font-bold text-sm">{chatInfo.name}</p>
 
           <div className="flex items-center space-x-2">
-            <div className="bg-green-50 rounded-md px-2 py-1">
-              <p className="text-ws-green-200 text-[10px]">Demo</p>
-            </div>
+            {chatInfo.labels?.map((label, index) => (
+              <div key={index} className="bg-green-50 rounded-md px-2 py-1">
+                <p
+                  key={index}
+                  className=" text-[10px]"
+                  style={{
+                    color: label.color,
+                  }}
+                >
+                  {label.label_name}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -139,19 +156,19 @@ const AllChats = ({
       return;
     }
 
-    // const { data: labelData, error: labelError } = await supabase
-    //   .from("chat_labels")
-    //   .select(
-    //     `
-    //      chat_partner_id,
-    //      label_name
-    //     `
-    //   )
-    //   .eq("user_id", user?.id);
+    const { data: labelData, error: labelError } = await supabase
+      .from("chat_labels")
+      .select(
+        `
+         chat_partner_id,
+         label_name
+        `
+      )
+      .eq("user_id", user?.id);
 
-    // if (labelError) {
-    //   return;
-    // }
+    if (labelError) {
+      return;
+    }
 
     // Mapping to include the latest message for each user
     const formattedPersonsData: CHAT_INFO[] = personsData?.map(
@@ -164,6 +181,15 @@ const AllChats = ({
         phone: message.phone,
         latest_message: message.content,
         latest_message_timestamp: message.created_at,
+        labels: labelData
+          .find(
+            (data) =>
+              data.chat_partner_id ==
+              (message.sender_id == user?.id
+                ? message.receiver_id
+                : message.sender_id)
+          )
+          ?.label_name.map(JSON.parse),
       })
     );
 
@@ -237,6 +263,7 @@ const AllChats = ({
         phone: person.phone,
         latest_message: "",
         latest_message_timestamp: "",
+        labels: [],
       }));
 
       setNewSearchPersons(personsData);

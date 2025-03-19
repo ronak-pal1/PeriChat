@@ -5,7 +5,7 @@ import { useRefetch } from "@/context/refetchContext";
 import { supabase } from "@/lib/supabaseClient";
 import { formatToOnlyTime } from "@/utils/formatTime";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Modal from "./Modal";
 
 enum MESSAGE_TYPES {
@@ -14,6 +14,7 @@ enum MESSAGE_TYPES {
 }
 
 type CHAT_INFO_TYPE = {
+  id: string;
   type: MESSAGE_TYPES;
   name: string;
   content: string;
@@ -22,11 +23,23 @@ type CHAT_INFO_TYPE = {
   is_read: boolean;
   createdAt: string;
   number: string;
+  replied_id: string;
 };
 
-const MessageBox = ({ chatInfo }: { chatInfo: CHAT_INFO_TYPE }) => {
+const MessageBox = ({
+  chatInfo,
+  setCurrentSelectedId,
+  repliedchatInfo,
+}: {
+  chatInfo: CHAT_INFO_TYPE;
+  repliedchatInfo?: CHAT_INFO_TYPE;
+  setCurrentSelectedId: React.Dispatch<React.SetStateAction<string>>;
+}) => {
   return (
     <div
+      onDoubleClick={() => {
+        setCurrentSelectedId(chatInfo.id);
+      }}
       className={`w-full h-fit flex ${
         chatInfo.type == MESSAGE_TYPES.SENT ? "justify-end" : "justify-start"
       }`}
@@ -42,6 +55,11 @@ const MessageBox = ({ chatInfo }: { chatInfo: CHAT_INFO_TYPE }) => {
               : "bg-white rounded-r-lg"
           } px-3 py-2  rounded-b-lg min-w-60 flex flex-col max-w-96 space-y-2 shadow-md`}
         >
+          {repliedchatInfo && (
+            <div className="text-sm bg-gray-200 w-full">
+              {repliedchatInfo.content}
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-ws-green-400">
               {chatInfo.name}
@@ -114,11 +132,19 @@ const ChatWindow = ({
         sender_id: user?.id,
         receiver_id: currentChatPersonId,
         content: message,
+        replied_id: currentSelectedMessageId,
       },
     ]);
 
     setMessage("");
   };
+
+  const [currentSelectedMessageId, setCurrentSelectedMessageId] =
+    useState<string>("");
+
+  useEffect(() => {
+    console.log("current: ", currentSelectedMessageId);
+  }, [currentSelectedMessageId]);
 
   // For displaying the scroll to bottom button on scroll
   const [isScrollToBBVisible, setIsScrollToBBVisible] =
@@ -161,6 +187,7 @@ const ChatWindow = ({
 
     if (data) {
       const formattedData: CHAT_INFO_TYPE[] = data.map((d) => ({
+        id: d.id,
         content: d.content,
         is_read: d.is_read,
         createdAt: d.created_at,
@@ -180,6 +207,7 @@ const ChatWindow = ({
             : profileInfo.phone,
         type:
           d.sender_id == user.id ? MESSAGE_TYPES.SENT : MESSAGE_TYPES.RECEIVED,
+        replied_id: d.replied_id,
       }));
 
       setChatHistory(formattedData);
@@ -190,6 +218,7 @@ const ChatWindow = ({
     if (!user || !currentChatPersonId || !profileInfo) return;
 
     fetchChatHistory();
+    fetchSelectedLabels();
 
     chatWindowRef.current?.scrollTo({
       behavior: "smooth",
@@ -203,6 +232,7 @@ const ChatWindow = ({
         { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
           const formattedData: CHAT_INFO_TYPE = {
+            id: payload.new.id,
             content: payload.new.content,
             is_read: payload.new.is_read,
             createdAt: payload.new.createdAt,
@@ -224,6 +254,7 @@ const ChatWindow = ({
               payload.new.sender_id == user.id
                 ? MESSAGE_TYPES.SENT
                 : MESSAGE_TYPES.RECEIVED,
+            replied_id: payload.new.replied_id,
           };
 
           setChatHistory((prev) => [...prev, formattedData]);
@@ -265,16 +296,142 @@ const ChatWindow = ({
     getProfileById(currentChatPersonId);
   }, [currentChatPersonId]);
 
+  type LABEL_TYPE = {
+    id: string;
+    label_name: string;
+    color: string;
+  };
+
+  const [labels, setLabels] = useState<LABEL_TYPE[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<LABEL_TYPE[]>([]);
+
+  const fetchLabels = async () => {
+    const { data, error } = await supabase
+      .from("chat_label_separate")
+      .select("id, label_name, color"); // Select all labels with their details
+
+    if (error) {
+      console.error("Error fetching chat labels:", error.message);
+    } else {
+      setLabels(data as LABEL_TYPE[]);
+    }
+  };
+
+  const fetchSelectedLabels = async () => {
+    const { data, error } = await supabase
+      .from("chat_labels")
+      .select(
+        `
+       chat_partner_id,
+       label_name
+      `
+      )
+      .eq("user_id", user?.id)
+      .eq("chat_partner_id", currentChatPersonId);
+
+    if (error) {
+      return;
+    } else {
+      const labels = data[0]
+        ? data[0].label_name.map((label: string) => JSON.parse(label))
+        : [];
+
+      setSelectedLabels(labels);
+    }
+  };
+
+  useEffect(() => {
+    fetchLabels();
+  }, []);
+
+  const addLabels = async () => {
+    const { data, error } = await supabase.from("chat_labels").upsert(
+      [
+        {
+          user_id: user?.id,
+          chat_partner_id: currentChatPersonId,
+          label_name: selectedLabels, // New or updated labels array
+        },
+      ],
+      { onConflict: "user_id, chat_partner_id" }
+    );
+
+    if (error) {
+      console.error("Error adding labels:", error);
+    } else {
+      setSelectedLabels([]);
+
+      setIsLabelModalOpen(false);
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-1">
       {/* Modal for displaying the add label diaglog */}
       <Modal isOpen={isLabelModalOpen} setIsOpen={setIsLabelModalOpen}>
         <div
-          className="w-[50%] h-[60%] bg-white rounded-lg"
+          className="w-[50%] h-[60%] bg-white rounded-lg p-4"
           onClick={(e) => {
             e.stopPropagation();
           }}
-        ></div>
+        >
+          <h1 className="text-lg font-semibold">Chat Labels</h1>
+          <div className="flex items-center gap-2 flex-wrap my-3">
+            {labels?.map((l, index) => (
+              <div
+                key={index}
+                onClick={() => {
+                  if (!selectedLabels.includes(l))
+                    setSelectedLabels((labels) => [...labels, l]);
+                }}
+                className="w-fit h-fit px-2 py-1 rounded-md cursor-pointer bg-green-50"
+              >
+                <p
+                  className="text-sm"
+                  style={{
+                    color: l.color,
+                  }}
+                >
+                  {l.label_name}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <p>Selected Labels:</p>
+
+          <div className="flex items-center gap-2 flex-wrap my-3">
+            {selectedLabels?.map((l, index) => (
+              <div
+                onClick={() => {
+                  const newLabels = selectedLabels.filter(
+                    (label) => label.id != l.id
+                  );
+
+                  setSelectedLabels([...newLabels]);
+                }}
+                key={index}
+                className="w-fit h-fit px-2 py-1 rounded-md cursor-pointer bg-ws-green-50"
+              >
+                <p
+                  className="text-sm"
+                  style={{
+                    color: l.color,
+                  }}
+                >
+                  {l.label_name}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={addLabels}
+            className="bg-ws-green-400 text-sm px-3 py-1 rounded-md text-white mt-5 cursor-pointer"
+          >
+            Add labels
+          </button>
+        </div>
       </Modal>
 
       {/* Left main chat portion */}
@@ -363,7 +520,14 @@ const ChatWindow = ({
             ref={chatWindowRef}
           >
             {chatHistory.map((chat, index) => (
-              <MessageBox chatInfo={chat} key={index} />
+              <MessageBox
+                chatInfo={chat}
+                key={index}
+                setCurrentSelectedId={setCurrentSelectedMessageId}
+                repliedchatInfo={chatHistory.find(
+                  (c) => c.id == chat.replied_id
+                )}
+              />
             ))}
           </div>
         </div>
@@ -374,7 +538,22 @@ const ChatWindow = ({
             currentChatPersonId == "" && "hidden"
           }`}
         >
-          {isChatOverlayButtonsVisible && (
+          {currentSelectedMessageId && (
+            <div className=" z-50 bg-white">
+              <MessageBox
+                chatInfo={
+                  chatHistory.find(
+                    (c) => c.id === currentSelectedMessageId
+                  ) as CHAT_INFO_TYPE
+                }
+                setCurrentSelectedId={() => {
+                  setCurrentSelectedMessageId("");
+                }}
+              />
+            </div>
+          )}
+
+          {false && (
             <div className="absolute -top-1 left-4 -translate-y-full z-50 flex items-center space-x-1">
               <button className="bg-white px-4 rounded-t-md py-1 flex items-center space-x-2">
                 <p className="text-xs font-semibold text-ws-green-400">
