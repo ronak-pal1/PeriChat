@@ -132,7 +132,7 @@ const ChatWindow = ({
         sender_id: user?.id,
         receiver_id: currentChatPersonId,
         content: message,
-        replied_id: currentSelectedMessageId,
+        replied_id: currentSelectedMessageId ? currentSelectedMessageId : null,
       },
     ]);
 
@@ -141,10 +141,6 @@ const ChatWindow = ({
 
   const [currentSelectedMessageId, setCurrentSelectedMessageId] =
     useState<string>("");
-
-  useEffect(() => {
-    console.log("current: ", currentSelectedMessageId);
-  }, [currentSelectedMessageId]);
 
   // For displaying the scroll to bottom button on scroll
   const [isScrollToBBVisible, setIsScrollToBBVisible] =
